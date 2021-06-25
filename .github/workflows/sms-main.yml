@@ -1,69 +1,37 @@
+name: ci
+
+on:
+  push:
+    branches: master
+
 jobs:
-  build:
-    name: Build App
+  main:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      -
+        name: Checkout
         uses: actions/checkout@v2
-      - name: Set Env Values
-        run: |
-          git_commit_short=$(git rev-parse --short HEAD)
-          echo "GIT_COMMIT_SHORT=$git_commit_short" >> $GITHUB_ENV
-          git_url=$(git config --get remote.origin.url | sed "s/git@//g;s/\.git//g;s/:/\//g")
-          echo "GIT_URL=$git_url" >> $GITHUB_ENV
-          git_branch=$(git rev-parse --abbrev-ref HEAD)
-          echo "GIT_BRANCH=$git_branch" >> $GITHUB_ENV
-      - uses: webfactory/ssh-agent@v0.4.1
-        with:
-          ssh-private-key: ${{ secrets.SDK_REPO_SSH_KEY }}
-      - uses: actions/setup-node@v2
-        with:
-          node-version: "12"
-      - run: npm install
-      - run: npm run build-dev
-
-      # v2 works with 3 new actions (login, setup-buildx and setup-qemu)
-      - name: Set up QEMU
+      -
+        name: Set up QEMU
         uses: docker/setup-qemu-action@v1
-      - name: Set up Docker Buildx
+      -
+        name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Registry
-        uses: docker/login-action@v1
+      -
+        name: Login to DockerHub
+        uses: docker/login-action@v1 
         with:
-          registry: ${{ env.DOCKER_REGISTRY_HOST }}
-          username: ${{ env.DOCKER_REGISTRY_USER }}
-          password: ${{ env.DOCKER_REGISTRY_PASS }}
-      - name: Build and push
-        uses: docker/build-push-action@v2
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      -
+        name: Build and push
         id: docker_build
+        uses: docker/build-push-action@v2
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: |
-            ${{ env.DOCKER_REGISTRY_HOST }}/${{ env.DOCKER_REGISTRY_PROJECT }}/${{ env.APP }}:latest
-            ${{ env.DOCKER_REGISTRY_HOST }}/${{ env.DOCKER_REGISTRY_PROJECT }}/${{ env.APP }}:${{ env.GIT_COMMIT_SHORT }}
-          build-args: |
-            SDK_SSH_KEY=${{ env.SDK_SSH_KEY }}
-            VCS_REF=${{ env.GIT_COMMIT_SHORT }}
-            VCS_URL=${{ env.GIT_URL }}
-            VCS_BRANCH=${{ env.GIT_BRANCH }}
-      - name: Image digest
+          tags: studentmonitoring/myfile:latest
+      -
+        name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
-
-      - name: Save Configuration
-        run: |
-          printf "{ \"image\" : { \"name\" : \"%s\", \"tag\" : \"%s\"}, \"action\" : \"%s\"}" \
-          "${{ env.DOCKER_REGISTRY_HOST }}/${{ env.DOCKER_REGISTRY_PROJECT }}/${{ env.APP }}" \
-          "${{ env.GIT_COMMIT_SHORT }}" \
-          "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-          > data.json && cat data.json
-
-      - name: "Upload Build Data Artifact"
-        uses: actions/upload-artifact@v2
-        with:
-          name: build-data
-          path: ${{ env.PROJCT_BUILD_DATA }}
-          retention-days: 5
-Logs
